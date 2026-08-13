@@ -1,0 +1,94 @@
+# 1. Deploy the AKS cluster and the container registry and the nginx-ingress controller (deploy-aks-cluster workflow)
+# 2. Build and deploy images to the ACR created in 1 (manual step)
+# 3. Create secrets and apply the manifests file (this workflow)
+on: [workflow_dispatch]
+name: Deploy Manifests
+
+jobs:
+  deploy-manifests:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Login to Azure
+      uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5
+      with:
+        client-id: ${{ secrets.ARM_DEPLOYER_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Fetch AKS cluster Deployment Outputs
+      id: get_main_outputs
+      uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956
+      env:
+        AZURE_RG_CONTOSO_AKS: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+      with:
+        inlineScript: |
+
+            $KEY_VAULT_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.keyVaultName.value -o tsv)
+            echo "key_vault_name=$KEY_VAULT_NAME" >> $GITHUB_OUTPUT
+
+            LOAD_BALANCER_IP=$(kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            echo "load_balancer_ip=$LOAD_BALANCER_IP" >> $GITHUB_OUTPUT
+
+            ACR_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.acrName.value -o tsv)
+            echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+
+            $APP_INSIGHTS_CONNECTION_STRING=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.appInsightsConnectionString.value -o tsv)
+            echo "app_insights_connection_string=$APP_INSIGHTS_CONNECTION_STRING" >> $GITHUB_OUTPUT
+
+            $CONTOSO_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.managedIdentityClientId.value -o tsv)
+            echo "contoso_api_identity_clientid=$CONTOSO_API_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
+
+            $CONTOSO_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoApiServiceAccountName.value -o tsv)
+            echo "contoso_api_serviceaccount_name=$CONTOSO_API_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
+
+            $CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
+            echo "contoso_app_namespace=$CONTOSO_APP_NAMESPACE" >> $GITHUB_OUTPUT
+
+            $EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoApiCertificateThumbprint.value -o tsv)
+            echo "expected_certificate_thumbprint=$EXPECTED_CERTIFICATE_THUMBPRINT" >> $GITHUB_OUTPUT
+
+    - name: Deploy namespace
+      env:
+        CONTOSO_APP_NAMESPACE: ${{ steps.get_main_outputs.outputs.contoso_app_namespace }}
+      run: |
+        kubectl apply -f kubernetes/namespace.yaml -n ${{ env.CONTOSO_APP_NAMESPACE }}
+
+    - name: Add Secrets to namespace
+      env:
+        CONNECTION_STRING: ${{ secrets.CONTOSO_DB_CONNECTION_STRING }}
+        CONTOSO_APP_NAMESPACE: ${{ steps.get_main_outputs.outputs.contoso_app_namespace }}
+        KEY_VAULT_NAME: ${{ steps.get_main_outputs.outputs.key_vault_name }}
+      run: |
+        kubectl create secret generic app-secrets --namespace=${{ env.CONTOSO_APP_NAMESPACE }}s \
+        --from-literal=keyVaultUrl="https://${KEY_VAULT_NAME}.vault.azure.net/" \
+        --from-literal=db-connection-string="${{ env.CONNECTION_STRING }}"
+
+    - name: Apply Manifests
+      env:
+        LOAD_BALANCER_IP: ${{ steps.get_main_outputs.outputs.load_balancer_ip }}
+        ACR_NAME: ${{ steps.get_main_outputs.outputs.acr_name }}
+        APP_INSIGHTS_CONNECTION_STRING: ${{ steps.get_main_outputs.outputs.app_insights_connection_string }}
+        CONTOSO_API_IDENTITY_CLIENTID: ${{ steps.get_main_outputs.outputs.contoso_api_identity_clientid }}
+        CONTOSO_API_SERVICEACCOUNT_NAME: ${{ steps.get_main_outputs.outputs.contoso_api_serviceaccount_name }}
+        CONTOSO_APP_NAMESPACE: ${{ steps.get_main_outputs.outputs.contoso_app_namespace }}
+        EXPECTED_CERTIFICATE_THUMBPRINT: ${{ steps.get_main_outputs.outputs.expected_certificate_thumbprint }}
+      run: |
+        sed -e "s|LOAD_BALANCER_IP|${{ env.LOAD_BALANCER_IP }}|g" \
+        -e "s|ACR_NAME|${{ env.ACR_NAME }}|g" \
+        -e "s|APP_INSIGHTS_CONNECTION_STRING|${{ env.APP_INSIGHTS_CONNECTION_STRING }}|g" \
+        -e "s|CONTOSO_API_IDENTITY_CLIENTID|${{ env.CONTOSO_API_IDENTITY_CLIENTID }}|g" \
+        -e "s|CONTOSO_API_SERVICEACCOUNT_NAME|${{ env.CONTOSO_API_SERVICEACCOUNT_NAME }}|g" \
+        -e "s|EXPECTED_CERTIFICATE_THUMBPRINT|${{ env.EXPECTED_CERTIFICATE_THUMBPRINT }}|g" \
+        kubernetes/deployments.yaml | kubectl apply -f - -n ${{ env.CONTOSO_APP_NAMESPACE }}
+
+
+
+
+

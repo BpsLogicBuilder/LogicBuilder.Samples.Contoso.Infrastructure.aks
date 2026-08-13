@@ -1,0 +1,156 @@
+# Host-Based Ingress using nip.io (Ready to Use - No DNS Setup Required!)
+# Replace the deployments.yaml ingress section with this configuration to test host-based routing
+
+# This uses nip.io which automatically resolves:
+# - contoso-api.20.15.57.117.nip.io → 20.15.57.117
+# - contoso-spa-api.20.15.57.117.nip.io → 20.15.57.117
+# - etc.
+
+# To apply: kubectl apply -f kubernetes/deployments-host-based-nip.yaml
+# Then update Angular deployment with new URLs (see bottom of file)
+
+---
+# Ingress for health check endpoint
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-health-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /weatherforecast
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-spa-api.20.15.57.117.nip.io
+    http:
+      paths:
+      - path: /healthz
+        pathType: Exact
+        backend:
+          service:
+            name: contoso-spa-api
+            port:
+              number: 8080
+
+---
+# Ingress for Workflow API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-spa-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-spa-api.20.15.57.117.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-spa-api
+            port:
+              number: 8080
+
+---
+# Ingress for CRUD API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-api.20.15.57.117.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-api
+            port:
+              number: 8080
+
+---
+# Ingress for Kendo Grid API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-kendo-grid-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-kendo-grid-api.20.15.57.117.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-kendo-grid-api
+            port:
+              number: 8080
+
+---
+# Ingress for Angular Frontend
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-frontend-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso.20.15.57.117.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-angular
+            port:
+              number: 80
+
+---
+# After applying the above ingresses, update the Angular deployment environment variables:
+#
+# kubectl set env deployment/contoso-angular -n contoso-apps \
+#   WORKFLOW_URL=http://contoso-spa-api.20.15.57.117.nip.io \
+#   CRUD_URL=http://contoso-api.20.15.57.117.nip.io \
+#   GRID_URL=http://contoso-kendo-grid-api.20.15.57.117.nip.io
+#
+# Test URLs:
+# http://contoso.20.15.57.117.nip.io
+# http://contoso-api.20.15.57.117.nip.io/weatherforecast
+# http://contoso-spa-api.20.15.57.117.nip.io/weatherforecast
+# http://contoso-kendo-grid-api.20.15.57.117.nip.io/weatherforecast

@@ -1,0 +1,25 @@
+# Apply this configuration to fix Azure LoadBalancer health probe issues
+# This adds the necessary annotations and ensures health checks work properly
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress-ingress-nginx-controller
+  namespace: ingress-nginx
+  annotations:
+    # Azure LoadBalancer specific annotations
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/healthz"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-interval: "5"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-num-of-probe: "2"
+spec:
+  externalTrafficPolicy: Local  # This is important for health checks to work correctly
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/component: controller

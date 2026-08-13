@@ -1,0 +1,142 @@
+# Alternative: Host-Based Ingress Configuration
+# This approach uses DNS/hostnames instead of URL paths
+# Each service gets its own subdomain, all pointing to the same external IP
+
+# IMPORTANT: This file is for reference only. Your current path-based configuration is working.
+# To use this approach, you would need to:
+# 1. Configure DNS records (see DNS-SETUP.md)
+# 2. Update Angular environment variables to use new URLs
+# 3. Apply this file instead of the path-based configuration
+
+---
+# Ingress for health check endpoint (same as before)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-health-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /weatherforecast
+spec:
+  ingressClassName: nginx
+  rules:
+  # Health check endpoint on all hosts
+  - host: contoso-spa-api.yourdomain.com
+    http:
+      paths:
+      - path: /healthz
+        pathType: Exact
+        backend:
+          service:
+            name: contoso-spa-api
+            port:
+              number: 8080
+
+---
+# Ingress for Workflow API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-spa-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-spa-api.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-spa-api
+            port:
+              number: 8080
+
+---
+# Ingress for CRUD API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-api.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-api
+            port:
+              number: 8080
+
+---
+# Ingress for Kendo Grid API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-kendo-grid-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-kendo-grid-api.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-kendo-grid-api
+            port:
+              number: 8080
+
+---
+# Ingress for Angular Frontend
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-frontend-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-angular
+            port:
+              number: 80

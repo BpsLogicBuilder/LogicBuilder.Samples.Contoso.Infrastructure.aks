@@ -1,0 +1,571 @@
+# Kubernetes Deployments and Services for 6 Applications
+# This file contains all deployments, services, and ingress configuration
+
+# The following items will be updated with values out from the main.bicep deployment
+
+#   LOAD_BALANCER_IP
+#   ACR_NAME
+#   APP_INSIGHTS_CONNECTION_STRING
+#   CONTOSO_API_IDENTITY_CLIENTID
+#   CONTOSO_API_SERVICEACCOUNT_NAME
+#   CONTOSO_APP_NAMESPACE
+#   EXPECTED_CERTIFICATE_THUMBPRINT
+
+---
+# Namespace for the applications
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: contoso-apps
+
+---
+# ConfigMap for Application Insights
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: contoso-apps
+data:
+  APPLICATIONINSIGHTS_CONNECTION_STRING: "APP_INSIGHTS_CONNECTION_STRING" # Will be set during deployment
+  ASPNETCORE_ENVIRONMENT: "Development"
+
+---
+# 1. Angular Frontend Application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contoso-angular
+  namespace: contoso-apps
+  labels:
+    app: contoso-angular
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: contoso-angular
+  template:
+    metadata:
+      labels:
+        app: contoso-angular
+    spec:
+      containers:
+      - name: contoso-angular
+        image: ACR_NAME.azurecr.io/contosoangular:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: WORKFLOW_URL
+          value: "http://contoso-spa-api.LOAD_BALANCER_IP.nip.io"
+        - name: CRUD_URL
+          value: "http://contoso-api.LOAD_BALANCER_IP.nip.io"
+        - name: GRID_URL
+          value: "http://contoso-kendo-grid-api.LOAD_BALANCER_IP.nip.io"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-angular
+  namespace: contoso-apps
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-angular
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+
+---
+# 2. Workflow Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contoso-spa-api
+  namespace: contoso-apps
+  labels:
+    app: contoso-spa-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: contoso-spa-api
+  template:
+    metadata:
+      labels:
+        app: contoso-spa-api
+    spec:
+      containers:
+      - name: contoso-spa-api
+        image: ACR_NAME.azurecr.io/contosospaapi:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: AllowedOrigins__0
+          value: "*"
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-spa-api
+  namespace: contoso-apps
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-spa-api
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_API_SERVICEACCOUNT_NAME
+  namespace: contoso-apps
+  annotations:
+    # Replace with the output 'managedIdentityClientId' from your Bicep deployment
+    azure.workload.identity/client-id: "CONTOSO_API_IDENTITY_CLIENTID"
+
+---
+# 3. Frontend API 1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contoso-api
+  namespace: contoso-apps
+  labels:
+    app: contoso-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: contoso-api
+  template:
+    metadata:
+      labels:
+        app: contoso-api
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: CONTOSO_API_SERVICEACCOUNT_NAME
+      containers:
+      - name: contoso-api
+        image: ACR_NAME.azurecr.io/contosoapi:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: baseBslUrl
+          value: "http://contoso-bsl:8080/"
+        - name: keyVaultUrl
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: keyVaultUrl
+        - name: bslCertificateName
+          value: "frontend-client-cert"
+        - name: AllowedOrigins__0
+          value: "*"
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-api
+  namespace: contoso-apps
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-api
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+# 4. Frontend API 2
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contoso-kendo-grid-api
+  namespace: contoso-apps
+  labels:
+    app: contoso-kendo-grid-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: contoso-kendo-grid-api
+  template:
+    metadata:
+      labels:
+        app: contoso-kendo-grid-api
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: CONTOSO_API_SERVICEACCOUNT_NAME
+      containers:
+      - name: contoso-kendo-grid-api
+        image: ACR_NAME.azurecr.io/contosokendogridapi:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: baseBslUrl
+          value: "http://contoso-kendo-grid-bsl:8080/"
+        - name: keyVaultUrl
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: keyVaultUrl
+        - name: bslCertificateName
+          value: "frontend-client-cert"
+        - name: AllowedOrigins__0
+          value: "*"
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-kendo-grid-api
+  namespace: contoso-apps
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-kendo-grid-api
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+# 5. Backend API 1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contoso-bsl
+  namespace: contoso-apps
+  labels:
+    app: contoso-bsl
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: contoso-bsl
+  template:
+    metadata:
+      labels:
+        app: contoso-bsl
+    spec:
+      containers:
+      - name: contoso-bsl
+        image: ACR_NAME.azurecr.io/contosobsl:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: db-connection-string
+        - name: ExpectedCerificateThumbprint
+          value: "EXPECTED_CERTIFICATE_THUMBPRINT"
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-bsl
+  namespace: contoso-apps
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-bsl
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+# 6. Backend API 2
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contoso-kendo-grid-bsl
+  namespace: contoso-apps
+  labels:
+    app: contoso-kendo-grid-bsl
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: contoso-kendo-grid-bsl
+  template:
+    metadata:
+      labels:
+        app: contoso-kendo-grid-bsl
+    spec:
+      containers:
+      - name: contoso-kendo-grid-bsl
+        image: ACR_NAME.azurecr.io/contosokendogridbsl:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: db-connection-string
+        - name: ExpectedCerificateThumbprint
+          value: "EXPECTED_CERTIFICATE_THUMBPRINT"
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /weatherforecast
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-kendo-grid-bsl
+  namespace: contoso-apps
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-kendo-grid-bsl
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+# Ingress for Workflow API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-spa-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-spa-api.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-spa-api
+            port:
+              number: 8080
+
+---
+# Ingress for CRUD API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-api.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-api
+            port:
+              number: 8080
+
+---
+# Ingress for Kendo Grid API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-kendo-grid-api-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-kendo-grid-api.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-kendo-grid-api
+            port:
+              number: 8080
+
+---
+# Ingress for Angular Frontend
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-frontend-ingress
+  namespace: contoso-apps
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-angular
+            port:
+              number: 80
