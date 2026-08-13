@@ -22,13 +22,9 @@ jobs:
     - name: Deploy AKS Cluster
       id: deployClusterStep
       uses: azure/arm-deploy@v1
-      env:
-        DEPLOYER_IDENTITY_NAME: ${{ secrets.DEPLOYER_IDENTITY_NAME }}
-        DEPLOYER_IDENTITY_RESOURCE_GROUP: ${{ secrets.DEPLOYER_IDENTITY_RESOURCE_GROUP }}
       with:
         subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         resourceGroupName: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
-        parameters: deployerManagedIdentityName=${{ env.DEPLOYER_IDENTITY_NAME }} deployerManagedIdentityResourceGroup="${{ env.DEPLOYER_IDENTITY_RESOURCE_GROUP }}"
         template: ./main.bicep
         failOnStdErr: false
 

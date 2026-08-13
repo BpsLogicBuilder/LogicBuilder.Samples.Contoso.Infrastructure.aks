@@ -41,12 +41,6 @@ param k8sNamespace string = '${projectName}-apps'
 @description('When the service account is assigned to contoso-api and contoso-kendo-grid-api, they will receive the permissions assigned to the managed identity.')
 param k8sContosoApiServiceAccountName string = 'sa-${projectName}-api'
 
-@description('Managed identity resource name.')
-param deployerManagedIdentityName string
-
-@description('Resource group to which the deployer identity belongs.')
-param deployerManagedIdentityResourceGroup string
-
 @description('Generate a unique GUID to use as name for the role assignment')
 var contosoApiManagedIdentityToKeyVaultRoleAssignmentName = guid(contosoApiManagedIdentity.id, keyVaultCertificateUserRoleDefinitionID, keyVault.id)
 
@@ -277,10 +271,6 @@ resource aksDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-previe
 
 module  createKeyVaultAndCertificate './create-key-vault-and-cert.bicep' = {
   name: 'createKeyVaultAndCertificate'
-  params: {
-    deployerManagedIdentityName: deployerManagedIdentityName
-    deployerManagedIdentityResourceGroup: deployerManagedIdentityResourceGroup
-  }
 }
 
 // Outputs

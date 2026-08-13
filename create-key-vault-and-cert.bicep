@@ -16,12 +16,6 @@ param tenantId string = subscription().tenantId
 ])
 param skuName string = 'standard'
 
-@description('Managed identity resource name.')
-param deployerManagedIdentityName string
-
-@description('Resource group to which the deployer identity belongs.')
-param deployerManagedIdentityResourceGroup string
-
 param managedIdentityName string = 'id-deployment-script-kv'
 
 // 1. Create a User-Assigned Managed Identity for the script execution
