@@ -22,9 +22,12 @@ param deployerManagedIdentityName string
 @description('Resource group to which the deployer identity belongs.')
 param deployerManagedIdentityResourceGroup string
 
-resource scriptIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(deployerManagedIdentityResourceGroup)
-  name: deployerManagedIdentityName
+param managedIdentityName string = 'id-deployment-script-kv'
+
+// 1. Create a User-Assigned Managed Identity for the script execution
+resource scriptIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: managedIdentityName
+  location: location
 }
 
 resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
