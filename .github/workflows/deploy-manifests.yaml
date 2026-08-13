@@ -86,7 +86,7 @@ jobs:
         -e "s|CONTOSO_API_IDENTITY_CLIENTID|${{ env.CONTOSO_API_IDENTITY_CLIENTID }}|g" \
         -e "s|CONTOSO_API_SERVICEACCOUNT_NAME|${{ env.CONTOSO_API_SERVICEACCOUNT_NAME }}|g" \
         -e "s|EXPECTED_CERTIFICATE_THUMBPRINT|${{ env.EXPECTED_CERTIFICATE_THUMBPRINT }}|g" \
-        kubernetes/deployments.yaml | kubectl apply -f - -n ${{ env.CONTOSO_APP_NAMESPACE }}
+        kubernetes/deployments.yaml | tee /dev/tty | kubectl apply -f - -n ${{ env.CONTOSO_APP_NAMESPACE }}
 
 
 
