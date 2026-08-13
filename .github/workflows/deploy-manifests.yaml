@@ -22,6 +22,11 @@ jobs:
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+    - name: Sign into Kubernetes tools
+      uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede
+      with:
+        version: 'latest'
+
     - name: Fetch AKS cluster Deployment Outputs
       id: get_main_outputs
       uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956
