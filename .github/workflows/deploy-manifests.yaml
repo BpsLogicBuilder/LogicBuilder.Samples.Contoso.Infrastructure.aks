@@ -29,35 +29,32 @@ jobs:
 
     - name: Fetch AKS cluster Deployment Outputs
       id: get_main_outputs
-      uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956
       env:
         AZURE_RG_CONTOSO_AKS: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
-      with:
-        inlineScript: |
+      run: |
+        KEY_VAULT_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.keyVaultName.value -o tsv)
+        echo "key_vault_name=$KEY_VAULT_NAME" >> $GITHUB_OUTPUT
 
-            KEY_VAULT_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.keyVaultName.value -o tsv)
-            echo "key_vault_name=$KEY_VAULT_NAME" >> $GITHUB_OUTPUT
+        LOAD_BALANCER_IP=$(kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        echo "load_balancer_ip=$LOAD_BALANCER_IP" >> $GITHUB_OUTPUT
 
-            LOAD_BALANCER_IP=$(kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            echo "load_balancer_ip=$LOAD_BALANCER_IP" >> $GITHUB_OUTPUT
+        ACR_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.acrName.value -o tsv)
+        echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
 
-            ACR_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.acrName.value -o tsv)
-            echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+        APP_INSIGHTS_CONNECTION_STRING=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.appInsightsConnectionString.value -o tsv)
+        echo "app_insights_connection_string=$APP_INSIGHTS_CONNECTION_STRING" >> $GITHUB_OUTPUT
 
-            APP_INSIGHTS_CONNECTION_STRING=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.appInsightsConnectionString.value -o tsv)
-            echo "app_insights_connection_string=$APP_INSIGHTS_CONNECTION_STRING" >> $GITHUB_OUTPUT
+        CONTOSO_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.managedIdentityClientId.value -o tsv)
+        echo "contoso_api_identity_clientid=$CONTOSO_API_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
 
-            CONTOSO_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.managedIdentityClientId.value -o tsv)
-            echo "contoso_api_identity_clientid=$CONTOSO_API_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
+        CONTOSO_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoApiServiceAccountName.value -o tsv)
+        echo "contoso_api_serviceaccount_name=$CONTOSO_API_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
 
-            CONTOSO_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoApiServiceAccountName.value -o tsv)
-            echo "contoso_api_serviceaccount_name=$CONTOSO_API_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
+        CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
+        echo "contoso_app_namespace=$CONTOSO_APP_NAMESPACE" >> $GITHUB_OUTPUT
 
-            CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
-            echo "contoso_app_namespace=$CONTOSO_APP_NAMESPACE" >> $GITHUB_OUTPUT
-
-            EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoApiCertificateThumbprint.value -o tsv)
-            echo "expected_certificate_thumbprint=$EXPECTED_CERTIFICATE_THUMBPRINT" >> $GITHUB_OUTPUT
+        EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoApiCertificateThumbprint.value -o tsv)
+        echo "expected_certificate_thumbprint=$EXPECTED_CERTIFICATE_THUMBPRINT" >> $GITHUB_OUTPUT
 
     - name: Deploy namespace
       env:
