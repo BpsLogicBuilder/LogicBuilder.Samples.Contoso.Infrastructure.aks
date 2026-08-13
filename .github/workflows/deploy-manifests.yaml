@@ -83,7 +83,7 @@ jobs:
         CONTOSO_APP_NAMESPACE: ${{ steps.get_main_outputs.outputs.contoso_app_namespace }}
         KEY_VAULT_NAME: ${{ steps.get_main_outputs.outputs.key_vault_name }}
       run: |
-        kubectl create secret generic app-secrets --namespace=${{ env.CONTOSO_APP_NAMESPACE }}s \
+        kubectl create secret generic app-secrets --namespace=${{ env.CONTOSO_APP_NAMESPACE }} \
         --from-literal=keyVaultUrl="https://${KEY_VAULT_NAME}.vault.azure.net/" \
         --from-literal=db-connection-string="${{ env.CONNECTION_STRING }}"
 
