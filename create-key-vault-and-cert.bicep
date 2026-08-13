@@ -70,6 +70,9 @@ resource createAndFetchCert 'Microsoft.Resources/deploymentScripts@2023-08-01' =
       '${scriptIdentity.id}': {}
     }
   }
+  dependsOn: [
+    roleAssignment // Ensures permissions exist before script executes
+  ]
   properties: {
     azCliVersion: '2.53.0'
     cleanupPreference: 'Always' 
