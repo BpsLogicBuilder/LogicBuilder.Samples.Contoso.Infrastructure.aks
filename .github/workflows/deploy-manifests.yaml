@@ -27,6 +27,21 @@ jobs:
       with:
         version: 'latest'
 
+    - name: Get AKS cluster name
+      id: get_aks_cluster
+      env:
+        AZURE_RG_CONTOSO_AKS: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+      run: |
+        AKS_CLUSTER_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.aksClusterName.value -o tsv)
+        echo "aks_cluster_name=$AKS_CLUSTER_NAME" >> $GITHUB_OUTPUT
+
+    - name: Get AKS Credentials
+      env:
+        RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+        AKS_CLUSTER_NAME: ${{ steps.get_aks_cluster.outputs.aks_cluster_name }}
+      run: |
+        az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }}
+
     - name: Fetch AKS cluster Deployment Outputs
       id: get_main_outputs
       env:
