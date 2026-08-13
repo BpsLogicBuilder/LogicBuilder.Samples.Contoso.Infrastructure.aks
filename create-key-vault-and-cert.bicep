@@ -49,6 +49,16 @@ resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
     }
   }
 }
+//Key Vault Certificates Officer                                                       a4417e6f-fecd-4de8-b567-7b0420556985
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: kv
+  name: guid(kv.id, scriptIdentity.id, 'a4417e6f-fecd-4de8-b567-7b0420556985')//Key Vault Certificates Officer 
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a441034c-53c2-433b-be46-794eaa64732a')
+    principalId: scriptIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
 
 resource createAndFetchCert 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: 'createAndFetchCertScript'

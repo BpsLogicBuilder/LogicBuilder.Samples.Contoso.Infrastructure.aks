@@ -13,7 +13,7 @@ jobs:
       uses: actions/checkout@v6
 
     - name: Login to Azure
-      uses: azure/login@v2
+      uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5
       with:
         client-id: ${{ secrets.ARM_DEPLOYER_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
