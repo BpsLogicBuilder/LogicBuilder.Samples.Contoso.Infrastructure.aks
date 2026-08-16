@@ -91,7 +91,7 @@ CONTOSO_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg 
 
 CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group $rg --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
 
-EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoApiCertificateThumbprint.value -o tsv)
+EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoBslCertificateThumbprint.value -o tsv)
 
 ---
 Finally, run the following command to deploy the manifests.  The command will replace the placeholders in the manifests with the values from the main.bicep deployment outputs.

@@ -68,7 +68,7 @@ jobs:
         CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
         echo "contoso_app_namespace=$CONTOSO_APP_NAMESPACE" >> $GITHUB_OUTPUT
 
-        EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoApiCertificateThumbprint.value -o tsv)
+        EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoBslCertificateThumbprint.value -o tsv)
         echo "expected_certificate_thumbprint=$EXPECTED_CERTIFICATE_THUMBPRINT" >> $GITHUB_OUTPUT
 
     - name: Deploy namespace
