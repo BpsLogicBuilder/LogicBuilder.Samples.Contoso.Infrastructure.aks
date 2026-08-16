@@ -288,4 +288,4 @@ output aksApiServerAddress string = aksCluster.properties.fqdn
 output managedIdentityClientId string = contosoApiManagedIdentity.properties.clientId
 output contosoApiServiceAccountName string = k8sContosoApiServiceAccountName
 output kubernetesNamespace string = k8sNamespace
-output contosoApiCertificateThumbprint string = createKeyVaultAndCertificate.outputs.certificateThumbprint
+output contosoBslCertificateThumbprint string = createKeyVaultAndCertificate.outputs.certificateThumbprint
