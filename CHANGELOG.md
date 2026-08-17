@@ -1,3 +1,4 @@
+* 2026-08-16 - AB#208: Add app configuration to initial deployment.
 * 2026-08-16 - AB#208: Rename API Certificate references to Bsl Certificate.
 * 2026-08-13 - AB#177: Remove typo
 * 2026-08-13 - AB#177: Need kubenetes credentials for kubectl calls.

@@ -1,5 +1,6 @@
 # Namespace for the applications
+#   CONTOSO_APP_NAMESPACE will be replace with the namsespace from the main.bicep deployment
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: contoso-apps
+  name: CONTOSO_APP_NAMESPACE

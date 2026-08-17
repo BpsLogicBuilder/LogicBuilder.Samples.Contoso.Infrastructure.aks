@@ -45,37 +45,71 @@ jobs:
     - name: Fetch AKS cluster Deployment Outputs
       id: get_main_outputs
       env:
-        AZURE_RG_CONTOSO_AKS: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+        RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
       run: |
-        KEY_VAULT_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.keyVaultName.value -o tsv)
+        KEY_VAULT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.keyVaultName.value -o tsv)
         echo "key_vault_name=$KEY_VAULT_NAME" >> $GITHUB_OUTPUT
 
         LOAD_BALANCER_IP=$(kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
         echo "load_balancer_ip=$LOAD_BALANCER_IP" >> $GITHUB_OUTPUT
 
-        ACR_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.acrName.value -o tsv)
+        ACR_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.acrName.value -o tsv)
         echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
 
-        APP_INSIGHTS_CONNECTION_STRING=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.appInsightsConnectionString.value -o tsv)
+        APP_INSIGHTS_CONNECTION_STRING=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.appInsightsConnectionString.value -o tsv)
         echo "app_insights_connection_string=$APP_INSIGHTS_CONNECTION_STRING" >> $GITHUB_OUTPUT
 
-        CONTOSO_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.managedIdentityClientId.value -o tsv)
+        APP_CONFIG_ENDPOINT=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.appConfigurationEndPoint.value -o tsv)
+        echo "app_config_endpoint=$APP_CONFIG_ENDPOINT" >> $GITHUB_OUTPUT
+
+        CONTOSO_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoApiManagedIdentityClientId.value -o tsv)
         echo "contoso_api_identity_clientid=$CONTOSO_API_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
 
-        CONTOSO_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoApiServiceAccountName.value -o tsv)
+        CONTOSO_BSL_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoBslManagedIdentityClientId.value -o tsv)
+        echo "contoso_bsl_identity_clientid=$CONTOSO_BSL_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
+
+        CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoKendoGridApiManagedIdentityClientId.value -o tsv)
+        echo "contoso_kendo_grid_api_identity_clientid=$CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
+
+        CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoKendoGridBslManagedIdentityClientId.value -o tsv)
+        echo "contoso_kendo_grid_bsl_identity_clientid=$CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
+
+        CONTOSO_SPA_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoSpaApiManagedIdentityClientId.value -o tsv)
+        echo "contoso_spa_api_identity_clientid=$CONTOSO_SPA_API_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
+
+        CONTOSO_ANGULAR_IDENTITY_CLIENTID=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoAngularManagedIdentityClientId.value -o tsv)
+        echo "contoso_angular_identity_clientid=$CONTOSO_ANGULAR_IDENTITY_CLIENTID" >> $GITHUB_OUTPUT
+
+        CONTOSO_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoApiServiceAccountName.value -o tsv)
         echo "contoso_api_serviceaccount_name=$CONTOSO_API_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
 
-        CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
+        CONTOSO_BSL_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoBlsServiceAccountName.value -o tsv)
+        echo "contoso_bsl_serviceaccount_name=$CONTOSO_BSL_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
+
+        CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoKendoGridApiServiceAccountName.value -o tsv)
+        echo "contoso_kendo_grid_api_serviceaccount_name=$CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
+
+        CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoKendoGridBslServiceAccountName.value -o tsv)
+        echo "contoso_kendo_grid_bsl_serviceaccount_name=$CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
+
+        CONTOSO_SPA_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoSpaApiServiceAccountName.value -o tsv)
+        echo "contoso_api_serviceaccount_name=$CONTOSO_SPA_API_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
+
+        CONTOSO_ANGULAR_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoAngularServiceAccountName.value -o tsv)
+        echo "contoso_angular_serviceaccount_name=$CONTOSO_ANGULAR_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
+
+        CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
         echo "contoso_app_namespace=$CONTOSO_APP_NAMESPACE" >> $GITHUB_OUTPUT
 
-        EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.contosoBslCertificateThumbprint.value -o tsv)
+        EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoBslCertificateThumbprint.value -o tsv)
         echo "expected_certificate_thumbprint=$EXPECTED_CERTIFICATE_THUMBPRINT" >> $GITHUB_OUTPUT
 
     - name: Deploy namespace
       env:
         CONTOSO_APP_NAMESPACE: ${{ steps.get_main_outputs.outputs.contoso_app_namespace }}
       run: |
-        kubectl apply -f kubernetes/namespace.yaml -n ${{ env.CONTOSO_APP_NAMESPACE }}
+        sed -e "s|CONTOSO_APP_NAMESPACE|${CONTOSO_APP_NAMESPACE}|g" \
+        kubernetes/namespace.yaml | tee /dev/tty | kubectl apply -f - -n ${{ env.CONTOSO_APP_NAMESPACE }}
 
     - name: Add Secrets to namespace
       env:
@@ -92,17 +126,41 @@ jobs:
         LOAD_BALANCER_IP: ${{ steps.get_main_outputs.outputs.load_balancer_ip }}
         ACR_NAME: ${{ steps.get_main_outputs.outputs.acr_name }}
         APP_INSIGHTS_CONNECTION_STRING: ${{ steps.get_main_outputs.outputs.app_insights_connection_string }}
+        APP_CONFIG_ENDPOINT: ${{ steps.get_main_outputs.outputs.app_config_endpoint }}
         CONTOSO_API_IDENTITY_CLIENTID: ${{ steps.get_main_outputs.outputs.contoso_api_identity_clientid }}
+        CONTOSO_BSL_IDENTITY_CLIENTID: ${{ steps.get_main_outputs.outputs.contoso_bsl_identity_clientid }}
+        CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID: ${{ steps.get_main_outputs.outputs.contoso_kendo_grid_api_identity_clientid }}
+        CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID: ${{ steps.get_main_outputs.outputs.contoso_kendo_grid_bsl_identity_clientid }}
+        CONTOSO_SPA_API_IDENTITY_CLIENTID: ${{ steps.get_main_outputs.outputs.contoso_spa_api_identity_clientid }}
+        CONTOSO_ANGULAR_IDENTITY_CLIENTID: ${{ steps.get_main_outputs.outputs.contoso_angular_identity_clientid }}
         CONTOSO_API_SERVICEACCOUNT_NAME: ${{ steps.get_main_outputs.outputs.contoso_api_serviceaccount_name }}
+        CONTOSO_BSL_SERVICEACCOUNT_NAME: ${{ steps.get_main_outputs.outputs.contoso_bsl_serviceaccount_name }}
+        CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME: ${{ steps.get_main_outputs.outputs.contoso_kendo_grid_api_serviceaccount_name }}
+        CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME: ${{ steps.get_main_outputs.outputs.contoso_kendo_grid_bsl_serviceaccount_name }}
+        CONTOSO_SPA_API_SERVICEACCOUNT_NAME: ${{ steps.get_main_outputs.outputs.contoso_spa_api_serviceaccount_name }}
+        CONTOSO_ANGULAR_SERVICEACCOUNT_NAME: ${{ steps.get_main_outputs.outputs.contoso_angular_serviceaccount_name }}
         CONTOSO_APP_NAMESPACE: ${{ steps.get_main_outputs.outputs.contoso_app_namespace }}
         EXPECTED_CERTIFICATE_THUMBPRINT: ${{ steps.get_main_outputs.outputs.expected_certificate_thumbprint }}
       run: |
         sed -e "s|LOAD_BALANCER_IP|${{ env.LOAD_BALANCER_IP }}|g" \
         -e "s|ACR_NAME|${{ env.ACR_NAME }}|g" \
         -e "s|APP_INSIGHTS_CONNECTION_STRING|${{ env.APP_INSIGHTS_CONNECTION_STRING }}|g" \
+        -e "s|APP_CONFIG_ENDPOINT|${{ env.APP_CONFIG_ENDPOINT }}|g" \
         -e "s|CONTOSO_API_IDENTITY_CLIENTID|${{ env.CONTOSO_API_IDENTITY_CLIENTID }}|g" \
+        -e "s|CONTOSO_BSL_IDENTITY_CLIENTID|${{ env.CONTOSO_BSL_IDENTITY_CLIENTID }}|g" \
+        -e "s|CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID|${{ env.CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID }}|g" \
+        -e "s|CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID|${{ env.CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID }}|g" \
+        -e "s|CONTOSO_SPA_API_IDENTITY_CLIENTID|${{ env.CONTOSO_SPA_API_IDENTITY_CLIENTID }}|g" \
+        -e "s|CONTOSO_ANGULAR_IDENTITY_CLIENTID|${{ env.CONTOSO_ANGULAR_IDENTITY_CLIENTID }}|g" \
         -e "s|CONTOSO_API_SERVICEACCOUNT_NAME|${{ env.CONTOSO_API_SERVICEACCOUNT_NAME }}|g" \
+        -e "s|CONTOSO_BSL_SERVICEACCOUNT_NAME|${{ env.CONTOSO_BSL_SERVICEACCOUNT_NAME }}|g" \
+        -e "s|CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME|${{ env.CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME }}|g" \
+        -e "s|CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME|${{ env.CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME }}|g" \
+        -e "s|CONTOSO_SPA_API_SERVICEACCOUNT_NAME|${{ env.CONTOSO_SPA_API_SERVICEACCOUNT_NAME }}|g" \
+        -e "s|CONTOSO_ANGULAR_SERVICEACCOUNT_NAME|${{ env.CONTOSO_ANGULAR_SERVICEACCOUNT_NAME }}|g" \
+        -e "s|CONTOSO_APP_NAMESPACE|${{ env.CONTOSO_APP_NAMESPACE }}|g" \
         -e "s|EXPECTED_CERTIFICATE_THUMBPRINT|${{ env.EXPECTED_CERTIFICATE_THUMBPRINT }}|g" \
+        -e "s|IMAGE_TAG|v1.0.0|g" \
         kubernetes/deployments.yaml | tee /dev/tty | kubectl apply -f - -n ${{ env.CONTOSO_APP_NAMESPACE }}
 
 

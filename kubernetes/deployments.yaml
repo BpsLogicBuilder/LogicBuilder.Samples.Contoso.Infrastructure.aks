@@ -1,7 +1,7 @@
 # Kubernetes Deployments and Services for 6 Applications
 # This file contains all deployments, services, and ingress configuration
 
-# The following items will be updated with values out from the main.bicep deployment
+# The following items will be updated with output values from the main.bicep deployment
 
 #   LOAD_BALANCER_IP
 #   ACR_NAME
@@ -12,30 +12,32 @@
 #   EXPECTED_CERTIFICATE_THUMBPRINT
 
 ---
-# Namespace for the applications
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: contoso-apps
-
----
 # ConfigMap for Application Insights
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: app-config
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
 data:
   APPLICATIONINSIGHTS_CONNECTION_STRING: "APP_INSIGHTS_CONNECTION_STRING" # Will be set during deployment
   ASPNETCORE_ENVIRONMENT: "Development"
 
 ---
-# 1. Angular Frontend Application
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_ANGULAR_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_ANGULAR_IDENTITY_CLIENTID"
+
+---
+# 1. angular
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: contoso-angular
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   labels:
     app: contoso-angular
 spec:
@@ -48,22 +50,27 @@ spec:
       labels:
         app: contoso-angular
     spec:
+      automountServiceAccountToken: false
+      serviceAccountName: CONTOSO_ANGULAR_SERVICEACCOUNT_NAME
       containers:
       - name: contoso-angular
-        image: ACR_NAME.azurecr.io/contosoangular:latest
+        image: ACR_NAME.azurecr.io/contosoangular:IMAGE_TAG
         ports:
         - containerPort: 80
         env:
+        - name: APPLICATION_CONFIGURATION_ENDPOINT
+          value: "APP_CONFIG_ENDPOINT"
         - name: WORKFLOW_URL
-          value: "http://contoso-spa-api.LOAD_BALANCER_IP.nip.io"
+          value: "http://contoso-spa-api.LOAD_BALANCER_IP.nip.io" # NOSONAR - DEV Only
         - name: CRUD_URL
-          value: "http://contoso-api.LOAD_BALANCER_IP.nip.io"
+          value: "http://contoso-api.LOAD_BALANCER_IP.nip.io" # NOSONAR - DEV Only
         - name: GRID_URL
-          value: "http://contoso-kendo-grid-api.LOAD_BALANCER_IP.nip.io"
+          value: "http://contoso-kendo-grid-api.LOAD_BALANCER_IP.nip.io" # NOSONAR - DEV Only
         resources:
           requests:
             memory: "256Mi"
             cpu: "250m"
+            ephemeral-storage: "256Mi"
           limits:
             memory: "512Mi"
             cpu: "500m"
@@ -85,7 +92,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: contoso-angular
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
 spec:
   type: ClusterIP
   selector:
@@ -95,13 +102,23 @@ spec:
     targetPort: 80
     protocol: TCP
 
+
 ---
-# 2. Workflow Service
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_SPA_API_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_SPA_API_IDENTITY_CLIENTID"
+
+---
+# 2. spa-api
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: contoso-spa-api
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   labels:
     app: contoso-spa-api
 spec:
@@ -114,12 +131,16 @@ spec:
       labels:
         app: contoso-spa-api
     spec:
+      automountServiceAccountToken: false
+      serviceAccountName: CONTOSO_SPA_API_SERVICEACCOUNT_NAME
       containers:
       - name: contoso-spa-api
-        image: ACR_NAME.azurecr.io/contosospaapi:latest
+        image: ACR_NAME.azurecr.io/contosospaapi:IMAGE_TAG
         ports:
         - containerPort: 8080
         env:
+        - name: APPLICATION_CONFIGURATION_ENDPOINT
+          value: "APP_CONFIG_ENDPOINT"
         - name: AllowedOrigins__0
           value: "*"
         envFrom:
@@ -129,6 +150,7 @@ spec:
           requests:
             memory: "512Mi"
             cpu: "500m"
+            ephemeral-storage: "512Mi"
           limits:
             memory: "1Gi"
             cpu: "1000m"
@@ -150,7 +172,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: contoso-spa-api
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
 spec:
   type: ClusterIP
   selector:
@@ -165,18 +187,17 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: CONTOSO_API_SERVICEACCOUNT_NAME
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   annotations:
-    # Replace with the output 'managedIdentityClientId' from your Bicep deployment
     azure.workload.identity/client-id: "CONTOSO_API_IDENTITY_CLIENTID"
 
 ---
-# 3. Frontend API 1
+# 3. api
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: contoso-api
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   labels:
     app: contoso-api
 spec:
@@ -190,13 +211,16 @@ spec:
         app: contoso-api
         azure.workload.identity/use: "true"
     spec:
+      automountServiceAccountToken: false
       serviceAccountName: CONTOSO_API_SERVICEACCOUNT_NAME
       containers:
       - name: contoso-api
-        image: ACR_NAME.azurecr.io/contosoapi:latest
+        image: ACR_NAME.azurecr.io/contosoapi:IMAGE_TAG
         ports:
         - containerPort: 8080
         env:
+        - name: APPLICATION_CONFIGURATION_ENDPOINT
+          value: "APP_CONFIG_ENDPOINT"
         - name: baseBslUrl
           value: "http://contoso-bsl:8080/"
         - name: keyVaultUrl
@@ -215,6 +239,7 @@ spec:
           requests:
             memory: "512Mi"
             cpu: "500m"
+            ephemeral-storage: "512Mi"
           limits:
             memory: "1Gi"
             cpu: "1000m"
@@ -236,7 +261,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: contoso-api
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
 spec:
   type: ClusterIP
   selector:
@@ -247,12 +272,21 @@ spec:
     protocol: TCP
 
 ---
-# 4. Frontend API 2
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID"
+
+---
+# 4. kendo-grid-api
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: contoso-kendo-grid-api
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   labels:
     app: contoso-kendo-grid-api
 spec:
@@ -266,15 +300,18 @@ spec:
         app: contoso-kendo-grid-api
         azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: CONTOSO_API_SERVICEACCOUNT_NAME
+      automountServiceAccountToken: false
+      serviceAccountName: CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME
       containers:
       - name: contoso-kendo-grid-api
-        image: ACR_NAME.azurecr.io/contosokendogridapi:latest
+        image: ACR_NAME.azurecr.io/contosokendogridapi:IMAGE_TAG
         ports:
         - containerPort: 8080
         env:
+        - name: APPLICATION_CONFIGURATION_ENDPOINT
+          value: "APP_CONFIG_ENDPOINT"
         - name: baseBslUrl
-          value: "http://contoso-kendo-grid-bsl:8080/"
+          value: "http://contoso-kendo-grid-bsl:8080/" # NOSONAR - DEV only
         - name: keyVaultUrl
           valueFrom:
             secretKeyRef:
@@ -291,6 +328,7 @@ spec:
           requests:
             memory: "512Mi"
             cpu: "500m"
+            ephemeral-storage: "512Mi"
           limits:
             memory: "1Gi"
             cpu: "1000m"
@@ -312,7 +350,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: contoso-kendo-grid-api
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
 spec:
   type: ClusterIP
   selector:
@@ -323,12 +361,21 @@ spec:
     protocol: TCP
 
 ---
-# 5. Backend API 1
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_BSL_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_BSL_IDENTITY_CLIENTID"
+
+---
+# 5. contoso-bsl
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: contoso-bsl
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   labels:
     app: contoso-bsl
 spec:
@@ -341,12 +388,16 @@ spec:
       labels:
         app: contoso-bsl
     spec:
+      automountServiceAccountToken: false
+      serviceAccountName: CONTOSO_BSL_SERVICEACCOUNT_NAME
       containers:
       - name: contoso-bsl
-        image: ACR_NAME.azurecr.io/contosobsl:latest
+        image: ACR_NAME.azurecr.io/contosobsl:IMAGE_TAG
         ports:
         - containerPort: 8080
         env:
+        - name: APPLICATION_CONFIGURATION_ENDPOINT
+          value: "APP_CONFIG_ENDPOINT"
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
             secretKeyRef:
@@ -361,6 +412,7 @@ spec:
           requests:
             memory: "512Mi"
             cpu: "500m"
+            ephemeral-storage: "512Mi"
           limits:
             memory: "1Gi"
             cpu: "1000m"
@@ -382,7 +434,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: contoso-bsl
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
 spec:
   type: ClusterIP
   selector:
@@ -393,12 +445,21 @@ spec:
     protocol: TCP
 
 ---
-# 6. Backend API 2
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID"
+
+---
+# 6. kendo-grid-bsl
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: contoso-kendo-grid-bsl
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   labels:
     app: contoso-kendo-grid-bsl
 spec:
@@ -411,12 +472,16 @@ spec:
       labels:
         app: contoso-kendo-grid-bsl
     spec:
+      automountServiceAccountToken: false
+      serviceAccountName: CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME
       containers:
       - name: contoso-kendo-grid-bsl
-        image: ACR_NAME.azurecr.io/contosokendogridbsl:latest
+        image: ACR_NAME.azurecr.io/contosokendogridbsl:IMAGE_TAG
         ports:
         - containerPort: 8080
         env:
+        - name: APPLICATION_CONFIGURATION_ENDPOINT
+          value: "APP_CONFIG_ENDPOINT"
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
             secretKeyRef:
@@ -431,6 +496,7 @@ spec:
           requests:
             memory: "512Mi"
             cpu: "500m"
+            ephemeral-storage: "512Mi"
           limits:
             memory: "1Gi"
             cpu: "1000m"
@@ -452,7 +518,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: contoso-kendo-grid-bsl
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
 spec:
   type: ClusterIP
   selector:
@@ -468,7 +534,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: contoso-spa-api-ingress
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   annotations:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
@@ -495,7 +561,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: contoso-api-ingress
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   annotations:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
@@ -522,7 +588,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: contoso-kendo-grid-api-ingress
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   annotations:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
@@ -549,7 +615,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: contoso-frontend-ingress
-  namespace: contoso-apps
+  namespace: CONTOSO_APP_NAMESPACE
   annotations:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"

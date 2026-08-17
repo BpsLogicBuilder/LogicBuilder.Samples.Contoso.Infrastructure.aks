@@ -29,20 +29,44 @@ param enableMonitoring bool = true
 @description('Kubernetes version')
 param kubernetesVersion string = '1.36.0'
 
-@description('Set the Key Vault Certificate User Role Definition ID')
-param keyVaultCertificateUserRoleDefinitionID string = 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba'
+@description('Managed Identity for contoso-api')
+param contosoApiManagedIdentityName string = 'uai-${projectName}-api'
+
+@description('Managed Identity for contoso-bsl')
+param contosoBslManagedIdentityName string = 'uai-${projectName}-bsl'
+
+@description('Managed Identity for contoso-kendo-grid-api')
+param contosoKendoGridApiManagedIdentityName string = 'uai-${projectName}-kendo-grid-api'
+
+@description('Managed Identity for contoso-kendo-grid-bsl')
+param contosoKendoGridBslManagedIdentityName string = 'uai-${projectName}-kendo-grid-bsl'
+
+@description('Managed Identity for contoso-spa-api')
+param contosoSpaApiManagedIdentityName string = 'uai-${projectName}-spa-api'
 
 @description('Managed Identity for contoso-api and contoso-kendo-grid-api')
-param contosoApiManagedIdentityName string = 'uai-${projectName}-api-${uniqueString(resourceGroup().id)}'
+param contosoAngularManagedIdentityName string = 'uai-${projectName}-angular'
 
 @description('Namespace for all Contoso services in the cluster')
 param k8sNamespace string = '${projectName}-apps'
 
-@description('When the service account is assigned to contoso-api and contoso-kendo-grid-api, they will receive the permissions assigned to the managed identity.')
+@description('When the service account is assigned to sa-contoso-api, they will receive the permissions assigned to the managed identity.')
 param k8sContosoApiServiceAccountName string = 'sa-${projectName}-api'
 
-@description('Generate a unique GUID to use as name for the role assignment')
-var contosoApiManagedIdentityToKeyVaultRoleAssignmentName = guid(contosoApiManagedIdentity.id, keyVaultCertificateUserRoleDefinitionID, keyVault.id)
+@description('When the service account is assigned to sa-contoso-bsl, they will receive the permissions assigned to the managed identity.')
+param k8sContosoBslServiceAccountName string = 'sa-${projectName}-bsl'
+
+@description('When the service account is assigned to sa-contoso-kendo-grid-api, they will receive the permissions assigned to the managed identity.')
+param k8sContosoKendoGridApiServiceAccountName string = 'sa-${projectName}-kendo-grid-api'
+
+@description('When the service account is assigned to sa-contoso-kendo-grid-bsl, they will receive the permissions assigned to the managed identity.')
+param k8sContosoKendoGridBslServiceAccountName string = 'sa-${projectName}-kendo-grid-bsl'
+
+@description('When the service account is assigned to sa-contoso-spa-api, they will receive the permissions assigned to the managed identity.')
+param k8sContosoSpaApiServiceAccountName string = 'sa-${projectName}-spa-api'
+
+@description('When the service account is assigned to sa-contoso-angular, they will receive the permissions assigned to the managed identity.')
+param k8sContosoAngularServiceAccountName string = 'sa-${projectName}-angular'
 
 // Variables
 var uniqueSuffix = uniqueString(resourceGroup().id)
@@ -51,6 +75,8 @@ var aksClusterName = '${projectName}-aks-${uniqueSuffix}'
 var acrName = replace('${projectName}acr${uniqueSuffix}', '-', '')
 var logAnalyticsName = '${projectName}-logs-${uniqueSuffix}'
 var appInsightsName = '${projectName}-insights-${uniqueSuffix}'
+var appConfigurationName = '${projectName}-config-${uniqueSuffix}'
+var federatedCredentialAudience = 'api://AzureADTokenExchange'
 
 resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: 'contoso-kv-${uniqueString(resourceGroup().id)}'
@@ -87,6 +113,17 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
     IngestionMode: 'LogAnalytics'
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
+  }
+}
+
+resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2024-05-01' = {
+  name: appConfigurationName
+  location: location
+  sku: {
+    name: 'standard'
+  }
+  identity: {
+    type: 'SystemAssigned'
   }
 }
 
@@ -209,26 +246,100 @@ resource contosoApiManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdenti
   location: location
 }
 
+resource contosoBslManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: contosoBslManagedIdentityName
+  location: location
+}
+
+resource contosoKendoGridApiManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: contosoKendoGridApiManagedIdentityName
+  location: location
+}
+
+resource contosoKendoGridBslManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: contosoKendoGridBslManagedIdentityName
+  location: location
+}
+
+resource contosoSpaApiManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: contosoSpaApiManagedIdentityName
+  location: location
+}
+
+resource contosoAngularManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: contosoAngularManagedIdentityName
+  location: location
+}
+
 resource contosoApiFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
   parent: contosoApiManagedIdentity
   name: 'fed-${contosoApiManagedIdentityName}'
   properties: {
     audiences: [
-      'api://AzureADTokenExchange'
+      federatedCredentialAudience
     ]
     issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
-    // Subject format MUST strictly match: system:serviceaccount:<namespace>:<service-account-name>
     subject: 'system:serviceaccount:${k8sNamespace}:${k8sContosoApiServiceAccountName}'
   }
 }
 
-resource contosoApiManagedIdentityToKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: keyVault
-  name: contosoApiManagedIdentityToKeyVaultRoleAssignmentName
+resource contosoBslFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+  parent: contosoBslManagedIdentity
+  name: 'fed-${contosoBslManagedIdentityName}'
   properties: {
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', keyVaultCertificateUserRoleDefinitionID)
-    principalId: contosoApiManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
+    audiences: [
+      federatedCredentialAudience
+    ]
+    issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:${k8sNamespace}:${k8sContosoBslServiceAccountName}'
+  }
+}
+
+resource contosoKendoGridApiFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+  parent: contosoKendoGridApiManagedIdentity
+  name: 'fed-${contosoKendoGridApiManagedIdentityName}'
+  properties: {
+    audiences: [
+      federatedCredentialAudience
+    ]
+    issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:${k8sNamespace}:${k8sContosoKendoGridApiServiceAccountName}'
+  }
+}
+
+resource contosoKendoGridBslFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+  parent: contosoKendoGridBslManagedIdentity
+  name: 'fed-${contosoKendoGridBslManagedIdentityName}'
+  properties: {
+    audiences: [
+      federatedCredentialAudience
+    ]
+    issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:${k8sNamespace}:${k8sContosoKendoGridBslServiceAccountName}'
+  }
+}
+
+resource contosoSpaApiFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+  parent: contosoSpaApiManagedIdentity
+  name: 'fed-${contosoSpaApiManagedIdentityName}'
+  properties: {
+    audiences: [
+      federatedCredentialAudience
+    ]
+    issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:${k8sNamespace}:${k8sContosoSpaApiServiceAccountName}'
+  }
+}
+
+resource contosoAngularFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+  parent: contosoAngularManagedIdentity
+  name: 'fed-${contosoAngularManagedIdentityName}'
+  properties: {
+    audiences: [
+      federatedCredentialAudience
+    ]
+    issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:${k8sNamespace}:${k8sContosoAngularServiceAccountName}'
   }
 }
 
@@ -273,6 +384,72 @@ module  createKeyVaultAndCertificate './create-key-vault-and-cert.bicep' = {
   name: 'createKeyVaultAndCertificate'
 }
 
+module apiManagedIdentityToKeyVaultCertificateUserRoleAssignment './assign-key-vault-certificate-user-role-to-managed-identity.bicep' = {
+  name: 'apiManagedIdentityToKeyVaultRoleAssignment'
+  params: {
+    managedIdentityName: contosoApiManagedIdentity.name
+    keyVaultName: keyVault.name
+  }
+  dependsOn: [createKeyVaultAndCertificate]
+}
+
+module kendoGridApiManagedIdentityToKeyVaultCertificateUserRoleAssignment './assign-key-vault-certificate-user-role-to-managed-identity.bicep' = {
+  name: 'kendoGridApiManagedIdentityToKeyVaultRoleAssignment'
+  params: {
+    managedIdentityName: contosoKendoGridApiManagedIdentity.name
+    keyVaultName: keyVault.name
+  }
+  dependsOn: [createKeyVaultAndCertificate]
+}
+
+module apiManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-config-data-reader-role-to-managed-identity.bicep' = {
+  name: 'apiManagedIdentityToAppConfigRoleAssignment'
+  params: {
+    managedIdentityName: contosoApiManagedIdentity.name
+    appConfigName: appConfiguration.name
+  }
+}
+
+module kendoGridApiManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-config-data-reader-role-to-managed-identity.bicep' = {
+  name: 'kendoGridApiManagedIdentityToAppConfigRoleAssignment'
+  params: {
+    managedIdentityName: contosoKendoGridApiManagedIdentity.name
+    appConfigName: appConfiguration.name
+  }
+}
+
+module bslManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-config-data-reader-role-to-managed-identity.bicep' = {
+  name: 'bslManagedIdentityToAppConfigRoleAssignment'
+  params: {
+    managedIdentityName: contosoBslManagedIdentity.name
+    appConfigName: appConfiguration.name
+  }
+}
+
+module kendoGridBslManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-config-data-reader-role-to-managed-identity.bicep' = {
+  name: 'kendoGridBslManagedIdentityToAppConfigRoleAssignment'
+  params: {
+    managedIdentityName: contosoKendoGridBslManagedIdentity.name
+    appConfigName: appConfiguration.name
+  }
+}
+
+module spaApiManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-config-data-reader-role-to-managed-identity.bicep' = {
+  name: 'spaApiManagedIdentityToAppConfigRoleAssignment'
+  params: {
+    managedIdentityName: contosoSpaApiManagedIdentity.name
+    appConfigName: appConfiguration.name
+  }
+}
+
+module angularManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-config-data-reader-role-to-managed-identity.bicep' = {
+  name: 'angularManagedIdentityToAppConfigRoleAssignment'
+  params: {
+    managedIdentityName: contosoAngularManagedIdentity.name
+    appConfigName: appConfiguration.name
+  }
+}
+
 // Outputs
 output aksClusterName string = aksCluster.name
 output aksClusterId string = aksCluster.id
@@ -281,11 +458,22 @@ output acrLoginServer string = acr.properties.loginServer
 output keyVaultName string = keyVault.name
 output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
+output appConfigurationEndPoint string = appConfiguration.properties.endpoint
 output logAnalyticsWorkspaceId string = logAnalytics.id
 output logAnalyticsWorkspaceName string = logAnalytics.name
 output aksNodeResourceGroup string = aksCluster.properties.nodeResourceGroup
 output aksApiServerAddress string = aksCluster.properties.fqdn
-output managedIdentityClientId string = contosoApiManagedIdentity.properties.clientId
+output contosoApiManagedIdentityClientId string = contosoApiManagedIdentity.properties.clientId
+output contosoBslManagedIdentityClientId string = contosoBslManagedIdentity.properties.clientId
+output contosoKendoGridApiManagedIdentityClientId string = contosoKendoGridApiManagedIdentity.properties.clientId
+output contosoKendoGridBslManagedIdentityClientId string = contosoKendoGridBslManagedIdentity.properties.clientId
+output contosoSpaApiManagedIdentityClientId string = contosoSpaApiManagedIdentity.properties.clientId
+output contosoAngularManagedIdentityClientId string = contosoAngularManagedIdentity.properties.clientId
 output contosoApiServiceAccountName string = k8sContosoApiServiceAccountName
+output contosoBslServiceAccountName string = k8sContosoBslServiceAccountName
+output contosoKendoGridApiServiceAccountName string = k8sContosoKendoGridApiServiceAccountName
+output contosoKendoGridBslServiceAccountName string = k8sContosoKendoGridBslServiceAccountName
+output contosoSpaApiServiceAccountName string = k8sContosoSpaApiServiceAccountName
+output contosoAngularServiceAccountName string = k8sContosoAngularServiceAccountName
 output kubernetesNamespace string = k8sNamespace
 output contosoBslCertificateThumbprint string = createKeyVaultAndCertificate.outputs.certificateThumbprint
