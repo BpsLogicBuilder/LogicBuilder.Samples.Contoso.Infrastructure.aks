@@ -31,7 +31,7 @@ Main.bicep declares a Microsoft.Compute/sshPublicKeys resource whose name is "co
 
 ### Deploy the AKS Cluster  
 ```bash
-az deployment group create --resource-group $rg --template-file main.bicep --parameters deployerManagedIdentityName="<managed identity name>" deployerManagedIdentityResourceGroup="<managed identity resource group>"
+az deployment group create --resource-group $rg --template-file main.bicep 
 ```
 ### Get credentials to create nginx-ingress controller 
 ```bash
@@ -42,14 +42,19 @@ az aks get-credentials --resource-group $rg --name $AKS_CLUSTER_NAME --overwrite
 ```bash
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
+MSYS_NO_PATHCONV=1 # needed to prevent Git Bash's POSIX path conversion feature (otherwise /healthz becomes C:/Program Files/Git/healthz)
 helm install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace --set controller.replicaCount=2 --set controller.nodeSelector.'kubernetes\.io/os'=linux --set controller.service.annotations.'service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path'=/healthz
+
+# To wait for the load balancer to be provisioned, run the following command until you see an external IP address assigned to the nginx-ingress service:
+kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx -w
 ```
 ### Deploy namespace so we can add secrets before deploying workloads
 ```bash
 KEY_VAULT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.keyVaultName.value -o tsv)
 CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group $rg --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
 
-kubectl apply -f kubernetes/namespace.yaml -n $CONTOSO_APP_NAMESPACE
+sed -e "s|CONTOSO_APP_NAMESPACE|${CONTOSO_APP_NAMESPACE}|g" \
+        kubernetes/namespace.yaml | tee /dev/tty | kubectl apply -f - -n $CONTOSO_APP_NAMESPACE
 kubectl create secret generic app-secrets --namespace=$CONTOSO_APP_NAMESPACE --from-literal=keyVaultUrl="https://${KEY_VAULT_NAME}.vault.azure.net/" --from-literal=db-connection-string="<Your database connection string>"
 ```
 
@@ -85,9 +90,31 @@ ACR_NAME=$(az deployment group show --resource-group $rg --name main --query pro
 
 APP_INSIGHTS_CONNECTION_STRING=$(az deployment group show --resource-group $rg --name main --query properties.outputs.appInsightsConnectionString.value -o tsv)
 
-CONTOSO_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.managedIdentityClientId.value -o tsv)
+APP_CONFIG_ENDPOINT=$(az deployment group show --resource-group $rg --name main --query properties.outputs.appConfigurationEndPoint.value -o tsv)
+
+CONTOSO_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoApiManagedIdentityClientId.value -o tsv)
+
+CONTOSO_BSL_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoBslManagedIdentityClientId.value -o tsv)
+
+CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoKendoGridApiManagedIdentityClientId.value -o tsv)
+
+CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoKendoGridBslManagedIdentityClientId.value -o tsv)
+
+CONTOSO_SPA_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoSpaApiManagedIdentityClientId.value -o tsv)
+
+CONTOSO_ANGULAR_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoAngularManagedIdentityClientId.value -o tsv)
 
 CONTOSO_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoApiServiceAccountName.value -o tsv)
+
+CONTOSO_BSL_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoBslServiceAccountName.value -o tsv)
+
+CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoKendoGridApiServiceAccountName.value -o tsv)
+
+CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoKendoGridBslServiceAccountName.value -o tsv)
+
+CONTOSO_SPA_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoSpaApiServiceAccountName.value -o tsv)
+
+CONTOSO_ANGULAR_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoAngularServiceAccountName.value -o tsv)
 
 CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group $rg --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
 
@@ -100,8 +127,21 @@ Finally, run the following command to deploy the manifests.  The command will re
 sed -e "s|LOAD_BALANCER_IP|${LOAD_BALANCER_IP}|g" \
         -e "s|ACR_NAME|${ACR_NAME}|g" \
         -e "s|APP_INSIGHTS_CONNECTION_STRING|${APP_INSIGHTS_CONNECTION_STRING}|g" \
+        -e "s|APP_CONFIG_ENDPOINT|${APP_CONFIG_ENDPOINT}|g" \
         -e "s|CONTOSO_API_IDENTITY_CLIENTID|${CONTOSO_API_IDENTITY_CLIENTID}|g" \
+        -e "s|CONTOSO_BSL_IDENTITY_CLIENTID|${CONTOSO_BSL_IDENTITY_CLIENTID}|g" \
+        -e "s|CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID|${CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID}|g" \
+        -e "s|CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID|${CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID}|g" \
+        -e "s|CONTOSO_SPA_API_IDENTITY_CLIENTID|${CONTOSO_SPA_API_IDENTITY_CLIENTID}|g" \
+        -e "s|CONTOSO_ANGULAR_IDENTITY_CLIENTID|${CONTOSO_ANGULAR_IDENTITY_CLIENTID}|g" \
         -e "s|CONTOSO_API_SERVICEACCOUNT_NAME|${CONTOSO_API_SERVICEACCOUNT_NAME}|g" \
+        -e "s|CONTOSO_BSL_SERVICEACCOUNT_NAME|${CONTOSO_BSL_SERVICEACCOUNT_NAME}|g" \
+        -e "s|CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME|${CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME}|g" \
+        -e "s|CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME|${CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME}|g" \
+        -e "s|CONTOSO_SPA_API_SERVICEACCOUNT_NAME|${CONTOSO_SPA_API_SERVICEACCOUNT_NAME}|g" \
+        -e "s|CONTOSO_ANGULAR_SERVICEACCOUNT_NAME|${CONTOSO_ANGULAR_SERVICEACCOUNT_NAME}|g" \
+        -e "s|CONTOSO_APP_NAMESPACE|${CONTOSO_APP_NAMESPACE}|g" \
         -e "s|EXPECTED_CERTIFICATE_THUMBPRINT|${EXPECTED_CERTIFICATE_THUMBPRINT}|g" \
+        -e "s|IMAGE_TAG|latest|g" \
         kubernetes/deployments.yaml | tee /dev/tty | kubectl apply -f - -n ${CONTOSO_APP_NAMESPACE}
 ```
