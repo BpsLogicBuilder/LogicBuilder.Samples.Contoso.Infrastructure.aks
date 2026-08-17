@@ -1,3 +1,4 @@
+* 2026-08-16 - AB#208: Fix reference to BSL Service Account Name from deployment output.
 * 2026-08-16 - AB#208: Fix SPA API service account name.
 * 2026-08-16 - AB#208: Add app configuration to initial deployment.
 * 2026-08-16 - AB#208: Rename API Certificate references to Bsl Certificate.
