@@ -83,7 +83,7 @@ jobs:
         CONTOSO_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoApiServiceAccountName.value -o tsv)
         echo "contoso_api_serviceaccount_name=$CONTOSO_API_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
 
-        CONTOSO_BSL_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoBlsServiceAccountName.value -o tsv)
+        CONTOSO_BSL_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoBslServiceAccountName.value -o tsv)
         echo "contoso_bsl_serviceaccount_name=$CONTOSO_BSL_SERVICEACCOUNT_NAME" >> $GITHUB_OUTPUT
 
         CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.contosoKendoGridApiServiceAccountName.value -o tsv)
