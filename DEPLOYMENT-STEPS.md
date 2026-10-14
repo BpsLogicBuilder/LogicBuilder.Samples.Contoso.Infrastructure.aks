@@ -36,6 +36,7 @@ az deployment group create --resource-group $rg --template-file main.bicep
 ### Get credentials to create nginx-ingress controller 
 ```bash
 AKS_CLUSTER_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.aksClusterName.value -o tsv)
+AKS_CLUSTER_NAME=$(echo "$AKS_CLUSTER_NAME" | tr -d '\r')
 az aks get-credentials --resource-group $rg --name $AKS_CLUSTER_NAME --overwrite-existing
 ```
 ### Install nginx-ingress controller
@@ -79,11 +80,16 @@ From the following repositories, go the infrastructure folder and run the comman
     ```bash
     az acr build --registry $acrName --image "contosospaapi:${imageTag}" --image contosospaapi:latest --file ./Contoso.Spa.Api/Dockerfile .
     ```
+- LogicBuilder.Samples.Contoso.ChatHub (1 image)
+    ```bash
+    az acr build --registry $acrName --image "contosochathub:${imageTag}" --image contosochathub:latest --file ./Contoso.ChatHub/Dockerfile .
+    ```
 
 ### Deploy the manifests
 First get the following variables from the main.bicep deployment outputs:
 
 ```bash
+foundryRG="rg-foundry-iq"
 LOAD_BALANCER_IP=$(kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
 ACR_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.acrName.value -o tsv)
@@ -100,6 +106,8 @@ CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID=$(az deployment group show --resource-g
 
 CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoKendoGridBslManagedIdentityClientId.value -o tsv)
 
+CONTOSO_CHAT_HUB_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoChatHubManagedIdentityClientId.value -o tsv)
+
 CONTOSO_SPA_API_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoSpaApiManagedIdentityClientId.value -o tsv)
 
 CONTOSO_ANGULAR_IDENTITY_CLIENTID=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoAngularManagedIdentityClientId.value -o tsv)
@@ -112,6 +120,8 @@ CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource
 
 CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoKendoGridBslServiceAccountName.value -o tsv)
 
+CONTOSO_CHAT_HUB_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoChatHubServiceAccountName.value -o tsv)
+
 CONTOSO_SPA_API_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoSpaApiServiceAccountName.value -o tsv)
 
 CONTOSO_ANGULAR_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoAngularServiceAccountName.value -o tsv)
@@ -119,6 +129,8 @@ CONTOSO_ANGULAR_SERVICEACCOUNT_NAME=$(az deployment group show --resource-group 
 CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group $rg --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
 
 EXPECTED_CERTIFICATE_THUMBPRINT=$(az deployment group show --resource-group $rg --name main --query properties.outputs.contosoBslCertificateThumbprint.value -o tsv)
+
+AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=$(az deployment group show --resource-group $foundryRG --name main --query properties.outputs.resources.value.foundryProjectEndPoint -o tsv)
 
 ---
 Finally, run the following command to deploy the manifests.  The command will replace the placeholders in the manifests with the values from the main.bicep deployment outputs.
@@ -132,16 +144,19 @@ sed -e "s|LOAD_BALANCER_IP|${LOAD_BALANCER_IP}|g" \
         -e "s|CONTOSO_BSL_IDENTITY_CLIENTID|${CONTOSO_BSL_IDENTITY_CLIENTID}|g" \
         -e "s|CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID|${CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID}|g" \
         -e "s|CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID|${CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID}|g" \
+        -e "s|CONTOSO_CHAT_HUB_IDENTITY_CLIENTID|${CONTOSO_CHAT_HUB_IDENTITY_CLIENTID}|g" \
         -e "s|CONTOSO_SPA_API_IDENTITY_CLIENTID|${CONTOSO_SPA_API_IDENTITY_CLIENTID}|g" \
         -e "s|CONTOSO_ANGULAR_IDENTITY_CLIENTID|${CONTOSO_ANGULAR_IDENTITY_CLIENTID}|g" \
         -e "s|CONTOSO_API_SERVICEACCOUNT_NAME|${CONTOSO_API_SERVICEACCOUNT_NAME}|g" \
         -e "s|CONTOSO_BSL_SERVICEACCOUNT_NAME|${CONTOSO_BSL_SERVICEACCOUNT_NAME}|g" \
         -e "s|CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME|${CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME}|g" \
         -e "s|CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME|${CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME}|g" \
+        -e "s|CONTOSO_CHAT_HUB_SERVICEACCOUNT_NAME|${CONTOSO_CHAT_HUB_SERVICEACCOUNT_NAME}|g" \
         -e "s|CONTOSO_SPA_API_SERVICEACCOUNT_NAME|${CONTOSO_SPA_API_SERVICEACCOUNT_NAME}|g" \
         -e "s|CONTOSO_ANGULAR_SERVICEACCOUNT_NAME|${CONTOSO_ANGULAR_SERVICEACCOUNT_NAME}|g" \
         -e "s|CONTOSO_APP_NAMESPACE|${CONTOSO_APP_NAMESPACE}|g" \
         -e "s|EXPECTED_CERTIFICATE_THUMBPRINT|${EXPECTED_CERTIFICATE_THUMBPRINT}|g" \
+        -e "s|FOUNDRY-PROJECT-ENDPOINT|${AZURE_AI_FOUNDRY_PROJECT_ENDPOINT}|g" \
         -e "s|IMAGE_TAG|latest|g" \
         kubernetes/deployments.yaml | tee /dev/tty | kubectl apply -f - -n ${CONTOSO_APP_NAMESPACE}
 ```
