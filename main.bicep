@@ -17,6 +17,9 @@ param nodeCount int = 3
 @description('AKS cluster node VM size')
 param nodeVmSize string = 'standard_d2ads_v7'
 
+@description('User pool node VM size')
+param userVmSize string = 'standard_d2ads_v7'
+
 @description('Admin username for AKS nodes')
 param adminUsername string = 'azureuser'
 
@@ -41,6 +44,9 @@ param contosoKendoGridApiManagedIdentityName string = 'uai-${projectName}-kendo-
 @description('Managed Identity for contoso-kendo-grid-bsl')
 param contosoKendoGridBslManagedIdentityName string = 'uai-${projectName}-kendo-grid-bsl'
 
+@description('Managed Identity for contoso-chat-hub')
+param contosoChatHubManagedIdentityName string = 'uai-${projectName}-chat-hub'
+
 @description('Managed Identity for contoso-spa-api')
 param contosoSpaApiManagedIdentityName string = 'uai-${projectName}-spa-api'
 
@@ -62,6 +68,9 @@ param k8sContosoKendoGridApiServiceAccountName string = 'sa-${projectName}-kendo
 @description('When the service account is assigned to sa-contoso-kendo-grid-bsl, they will receive the permissions assigned to the managed identity.')
 param k8sContosoKendoGridBslServiceAccountName string = 'sa-${projectName}-kendo-grid-bsl'
 
+@description('When the service account is assigned to sa-contoso-chat-hub, they will receive the permissions assigned to the managed identity.')
+param k8sContosoChatHubServiceAccountName string = 'sa-${projectName}-chat-hub'
+
 @description('When the service account is assigned to sa-contoso-spa-api, they will receive the permissions assigned to the managed identity.')
 param k8sContosoSpaApiServiceAccountName string = 'sa-${projectName}-spa-api'
 
@@ -77,6 +86,21 @@ var logAnalyticsName = '${projectName}-logs-${uniqueSuffix}'
 var appInsightsName = '${projectName}-insights-${uniqueSuffix}'
 var appConfigurationName = '${projectName}-config-${uniqueSuffix}'
 var federatedCredentialAudience = 'api://AzureADTokenExchange'
+
+var foundryResourceGroupName = 'rg-foundry-iq'
+var foundrySuffix = uniqueString(subscription().subscriptionId, foundryResourceGroup.id)
+var foundryAccountResourceName = 'bps-foundry-iq-${foundrySuffix}'
+var foundryUserRoleDefinitionID string = '53ca6127-db72-4b80-b1b0-d745d6d5456d'
+
+resource foundryAccountResource 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = {
+  name: foundryAccountResourceName
+  scope: resourceGroup(foundryResourceGroupName)
+}
+
+resource foundryResourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' existing = {
+  name: foundryResourceGroupName
+  scope: subscription()
+}
 
 resource keyVault 'Microsoft.KeyVault/vaults@2026-02-01' existing = {
   name: 'contoso-kv-${uniqueString(resourceGroup().id)}'
@@ -230,6 +254,24 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' = {
   }
 }
 
+resource userNodePool 'Microsoft.ContainerService/managedClusters/agentPools@2024-02-01' = {
+  parent: aksCluster
+  name: 'userpool'
+  properties: {
+    count: 2
+    vmSize: userVmSize
+    osType: 'Linux'
+    mode: 'User'
+    type: 'VirtualMachineScaleSets'
+    enableAutoScaling: true
+    minCount: 1
+    maxCount: 5
+    nodeLabels: {
+      workload: 'apps'
+    }
+  }
+}
+
 // Role assignment: AKS to pull images from ACR
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: acr
@@ -258,6 +300,11 @@ resource contosoKendoGridApiManagedIdentity 'Microsoft.ManagedIdentity/userAssig
 
 resource contosoKendoGridBslManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: contosoKendoGridBslManagedIdentityName
+  location: location
+}
+
+resource contosoChatHubManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: contosoChatHubManagedIdentityName
   location: location
 }
 
@@ -316,6 +363,18 @@ resource contosoKendoGridBslFederatedCredential 'Microsoft.ManagedIdentity/userA
     ]
     issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
     subject: 'system:serviceaccount:${k8sNamespace}:${k8sContosoKendoGridBslServiceAccountName}'
+  }
+}
+
+resource contosoChatHubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+  parent: contosoChatHubManagedIdentity
+  name: 'fed-${contosoChatHubManagedIdentityName}'
+  properties: {
+    audiences: [
+      federatedCredentialAudience
+    ]
+    issuer: aksCluster.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:${k8sNamespace}:${k8sContosoChatHubServiceAccountName}'
   }
 }
 
@@ -434,6 +493,14 @@ module kendoGridBslManagedIdentityToAppConfigDataReaderRoleAssignment './assign-
   }
 }
 
+module chatHubManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-config-data-reader-role-to-managed-identity.bicep' = {
+  name: 'chatHubManagedIdentityToAppConfigRoleAssignment'
+  params: {
+    managedIdentityName: contosoChatHubManagedIdentity.name
+    appConfigName: appConfiguration.name
+  }
+}
+
 module spaApiManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-config-data-reader-role-to-managed-identity.bicep' = {
   name: 'spaApiManagedIdentityToAppConfigRoleAssignment'
   params: {
@@ -447,6 +514,16 @@ module angularManagedIdentityToAppConfigDataReaderRoleAssignment './assign-app-c
   params: {
     managedIdentityName: contosoAngularManagedIdentity.name
     appConfigName: appConfiguration.name
+  }
+}
+
+module chatHubManagedIdentityToFoundryRoleAssignment './assign-foundry-user-access-to-managed-identity.bicep' = {
+  name: 'chatHubServiceToFoundryRoleAssignment'
+  scope: resourceGroup(foundryResourceGroupName)
+  params: {
+    foundryAccountResourceName: foundryAccountResource.name
+    managedIdentityPrincipalId: contosoChatHubManagedIdentity.properties.principalId
+    managedIdentityToFoundryRoleAssignmentName: guid(contosoChatHubManagedIdentity.id, foundryUserRoleDefinitionID, foundryAccountResource.id)
   }
 }
 
@@ -467,12 +544,14 @@ output contosoApiManagedIdentityClientId string = contosoApiManagedIdentity.prop
 output contosoBslManagedIdentityClientId string = contosoBslManagedIdentity.properties.clientId
 output contosoKendoGridApiManagedIdentityClientId string = contosoKendoGridApiManagedIdentity.properties.clientId
 output contosoKendoGridBslManagedIdentityClientId string = contosoKendoGridBslManagedIdentity.properties.clientId
+output contosoChatHubManagedIdentityClientId string = contosoChatHubManagedIdentity.properties.clientId
 output contosoSpaApiManagedIdentityClientId string = contosoSpaApiManagedIdentity.properties.clientId
 output contosoAngularManagedIdentityClientId string = contosoAngularManagedIdentity.properties.clientId
 output contosoApiServiceAccountName string = k8sContosoApiServiceAccountName
 output contosoBslServiceAccountName string = k8sContosoBslServiceAccountName
 output contosoKendoGridApiServiceAccountName string = k8sContosoKendoGridApiServiceAccountName
 output contosoKendoGridBslServiceAccountName string = k8sContosoKendoGridBslServiceAccountName
+output contosoChatHubServiceAccountName string = k8sContosoChatHubServiceAccountName
 output contosoSpaApiServiceAccountName string = k8sContosoSpaApiServiceAccountName
 output contosoAngularServiceAccountName string = k8sContosoAngularServiceAccountName
 output kubernetesNamespace string = k8sNamespace
