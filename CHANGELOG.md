@@ -1,3 +1,4 @@
+* 2026-10-16 - AB#246: Compare deploy-manifests.yaml/deployments.yaml with deployments.yaml/services.yaml.
 * 2026-10-16 - AB#246: Fix job sequence.
 * 2026-10-16 - AB#246: Apply service manifests before service deployments.
 * 2026-10-16 - AB#246: Fix error on existing secret - missing \.
