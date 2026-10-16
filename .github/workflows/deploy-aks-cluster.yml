@@ -2,7 +2,8 @@ on: [workflow_dispatch]
 name: Deploy AKS Cluster
 
 jobs:
-  build-and-deploy:
+  deploy-infrastructure:
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -29,10 +30,37 @@ jobs:
         template: ./main.bicep
         failOnStdErr: false
 
+  install-nginx:
+    name: Install Nginx
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    needs: deploy-infrastructure
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Login to Azure
+      uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5
+      with:
+        client-id: ${{ secrets.ARM_DEPLOYER_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Get AKS cluster name
+      id: get_aks_cluster
+      env:
+        RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+      run: |
+        AKS_CLUSTER_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.aksClusterName.value -o tsv)
+        echo "aks_cluster_name=$AKS_CLUSTER_NAME" >> $GITHUB_OUTPUT
+
     - name: Get AKS Credentials
       env:
         RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
-        AKS_CLUSTER_NAME: ${{ steps.deployClusterStep.outputs.aksClusterName }}
+        AKS_CLUSTER_NAME: ${{ steps.get_aks_cluster.outputs.aks_cluster_name }}
       run: |
         az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }}
 
@@ -40,5 +68,112 @@ jobs:
       run: |
         helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
         helm repo update
-        helm install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace --set controller.replicaCount=2 --set controller.nodeSelector.'kubernetes\.io/os'=linux --set controller.service.annotations.'service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path'=/healthz
+        helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace --set controller.replicaCount=2 --set controller.nodeSelector.'kubernetes\.io/os'=linux --set controller.service.annotations.'service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path'=/healthz
+
+    - name: Wait for Nginx Load Balancer IP
+      run: |
+        echo "Waiting for the ingress controller deployment to be ready..."
+        # Wait unitil pods are ready before checking for IP.  This prevents downstream crashes
+        kubectl rollout status deployment/nginx-ingress-ingress-nginx-controller -n ingress-nginx --timeout=90s
+        
+        echo "Waiting for the LoadBalancer external IP to be assigned..."
+        until [ -n "$(kubectl get svc nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')" ]; do
+          echo "Still waiting for external IP..."
+          sleep 5
+        done
+        
+        LB_IP=$(kubectl get svc nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        echo "Load Balancer is ready!"
+        echo "IP: ${LB_IP}"
+
+  add-secrets:
+    name: Add Secrets
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    needs: install-nginx
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      
+    - name: Login to Azure
+      uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5
+      with:
+        client-id: ${{ secrets.ARM_DEPLOYER_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Fetch AKS cluster Deployment Outputs
+      id: get_main_outputs
+      env:
+        RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+      run: |
+        AKS_CLUSTER_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.aksClusterName.value -o tsv)
+        echo "::add-mask::$AKS_CLUSTER_NAME"
+
+        KEY_VAULT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.keyVaultName.value -o tsv)
+        echo "::add-mask::$KEY_VAULT_NAME"
+
+        CONTOSO_APP_NAMESPACE=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.kubernetesNamespace.value -o tsv)
+        echo "::add-mask::$CONTOSO_APP_NAMESPACE"
+
+        echo "aks_cluster_name=$AKS_CLUSTER_NAME" >> $GITHUB_OUTPUT
+        echo "key_vault_name=$KEY_VAULT_NAME" >> $GITHUB_OUTPUT
+        echo "contoso_app_namespace=$CONTOSO_APP_NAMESPACE" >> $GITHUB_OUTPUT
+
+    - name: Get AKS Credentials
+      env:
+        RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+        AKS_CLUSTER_NAME: ${{ steps.get_main_outputs.outputs.aks_cluster_name }}
+      run: |
+        az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }}
+
+    - name: Deploy namespace
+      env:
+        CONTOSO_APP_NAMESPACE: ${{ steps.get_main_outputs.outputs.contoso_app_namespace }}
+      run: |
+        sed -e "s|CONTOSO_APP_NAMESPACE|${CONTOSO_APP_NAMESPACE}|g" \
+        kubernetes/namespace.yaml | tee /dev/tty | kubectl apply -f - -n ${{ env.CONTOSO_APP_NAMESPACE }}
+
+    - name: Add Secrets to namespace
+      env:
+        CONNECTION_STRING: ${{ secrets.CONTOSO_DB_CONNECTION_STRING }}
+        CONTOSO_APP_NAMESPACE: ${{ steps.get_main_outputs.outputs.contoso_app_namespace }}
+        KEY_VAULT_NAME: ${{ steps.get_main_outputs.outputs.key_vault_name }}
+      run: |
+        kubectl create secret generic app-secrets --namespace=${{ env.CONTOSO_APP_NAMESPACE }} \
+        --from-literal=keyVaultUrl="https://${KEY_VAULT_NAME}.vault.azure.net/" \
+        --from-literal=db-connection-string="${{ env.CONNECTION_STRING }}"
+
+  trigger-cd-pipelines:
+    name: Deploy Services
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: add-secrets
+    strategy:
+      fail-fast: false 
+      matrix:
+        repo:
+          - "LogicBuilder.Samples.Contoso.Angular"
+          - "LogicBuilder.Samples.Contoso.ChatHub"
+          - "LogicBuilder.Samples.Contoso.KendoGrid.Services"
+          - "LogicBuilder.Samples.Contoso.Services"
+          - "LogicBuilder.Samples.Contoso.Spa.Flow"
+    steps:
+      - name: Generate GitHub App Token
+        id: repo-access-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.CROSS_REPO_ACCESS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CROSS_REPO_ACCESS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ matrix.repo }}
+
+      - name: Trigger App Deployment
+        run: gh workflow run cd-aks.yml --repo "${{ format('{0}/{1}', github.repository_owner, matrix.repo) }}" --ref "master"
+        env:
+          GH_TOKEN: ${{ steps.repo-access-app-token.outputs.token }}
     
