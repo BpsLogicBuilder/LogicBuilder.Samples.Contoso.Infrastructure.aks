@@ -146,7 +146,7 @@ jobs:
       run: |
         kubectl create secret generic app-secrets --namespace=${{ env.CONTOSO_APP_NAMESPACE }} \
         --from-literal=keyVaultUrl="https://${KEY_VAULT_NAME}.vault.azure.net/" \
-        --from-literal=db-connection-string="${{ env.CONNECTION_STRING }}"
+        --from-literal=db-connection-string="${{ env.CONNECTION_STRING }}" \
         --dry-run=client -o yaml | kubectl apply -f -
 
   trigger-cd-pipelines:
