@@ -1,0 +1,325 @@
+# Kubernetes Deployments and Services for 6 Applications
+# This file contains all deployments, services, and ingress configuration
+
+# The following items will be updated with output values from the main.bicep deployment
+
+#   LOAD_BALANCER_IP
+#   APP_INSIGHTS_CONNECTION_STRING
+#   CONTOSO_API_IDENTITY_CLIENTID
+#   CONTOSO_API_SERVICEACCOUNT_NAME
+#   CONTOSO_APP_NAMESPACE
+
+---
+# ConfigMap for Application Insights
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: CONTOSO_APP_NAMESPACE
+data:
+  APPLICATIONINSIGHTS_CONNECTION_STRING: "APP_INSIGHTS_CONNECTION_STRING" # Will be set during deployment
+  ASPNETCORE_ENVIRONMENT: "Development"
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_ANGULAR_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_ANGULAR_IDENTITY_CLIENTID"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-angular
+  namespace: CONTOSO_APP_NAMESPACE
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-angular
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_CHAT_HUB_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_CHAT_HUB_IDENTITY_CLIENTID"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-chat-hub
+  namespace: CONTOSO_APP_NAMESPACE
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-chat-hub
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_SPA_API_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_SPA_API_IDENTITY_CLIENTID"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-spa-api
+  namespace: CONTOSO_APP_NAMESPACE
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-spa-api
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_API_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_API_IDENTITY_CLIENTID"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-api
+  namespace: CONTOSO_APP_NAMESPACE
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-api
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_KENDO_GRID_API_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_KENDO_GRID_API_IDENTITY_CLIENTID"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-kendo-grid-api
+  namespace: CONTOSO_APP_NAMESPACE
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-kendo-grid-api
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_BSL_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_BSL_IDENTITY_CLIENTID"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-bsl
+  namespace: CONTOSO_APP_NAMESPACE
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-bsl
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: CONTOSO_KENDO_GRID_BSL_SERVICEACCOUNT_NAME
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    azure.workload.identity/client-id: "CONTOSO_KENDO_GRID_BSL_IDENTITY_CLIENTID"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contoso-kendo-grid-bsl
+  namespace: CONTOSO_APP_NAMESPACE
+spec:
+  type: ClusterIP
+  selector:
+    app: contoso-kendo-grid-bsl
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+# Ingress for chat hub
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-chat-hub-ingress
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,x-signalr-user-agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://contoso.LOAD_BALANCER_IP.nip.io" # NOSONAR - DEV Only
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-chat-hub.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-chat-hub
+            port:
+              number: 8080
+
+---
+# Ingress for Workflow API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-spa-api-ingress
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-spa-api.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-spa-api
+            port:
+              number: 8080
+
+---
+# Ingress for CRUD API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-api-ingress
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-api.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-api
+            port:
+              number: 8080
+
+---
+# Ingress for Kendo Grid API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-kendo-grid-api-ingress
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso-kendo-grid-api.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-kendo-grid-api
+            port:
+              number: 8080
+
+---
+# Ingress for Angular Frontend
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: contoso-frontend-ingress
+  namespace: CONTOSO_APP_NAMESPACE
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: contoso.LOAD_BALANCER_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: contoso-angular
+            port:
+              number: 80
