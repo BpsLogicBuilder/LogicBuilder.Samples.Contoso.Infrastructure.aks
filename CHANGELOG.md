@@ -1,3 +1,4 @@
+* 2026-10-16 - AB#246: Fix error on existing secret - missing \.
 * 2026-10-16 - AB#246: Fix error on existing secret.
 * 2026-10-16 - AB#246: Kick of service deployments after infrastructure deployment.
 * 2026-10-14 - AB#234: Update manifests and bicep to include the chat hub.
