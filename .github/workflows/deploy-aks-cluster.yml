@@ -155,7 +155,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    needs: install-nginx
+    needs: add-secrets
 
     steps:
     - name: Checkout repository
@@ -168,17 +168,28 @@ jobs:
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+    - name: Get AKS cluster name
+      id: get_aks_cluster
+      env:
+        AZURE_RG_CONTOSO_AKS: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+      run: |
+        AKS_CLUSTER_NAME=$(az deployment group show --resource-group ${{ env.AZURE_RG_CONTOSO_AKS }} --name main --query properties.outputs.aksClusterName.value -o tsv)
+        echo "aks_cluster_name=$AKS_CLUSTER_NAME" >> $GITHUB_OUTPUT
+
+    - name: Get AKS Credentials
+      env:
+        RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
+        AKS_CLUSTER_NAME: ${{ steps.get_aks_cluster.outputs.aks_cluster_name }}
+      run: |
+        az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }}
+
     - name: Fetch AKS cluster Deployment Outputs
       id: get_main_outputs
       env:
         RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
       run: |
-        AKS_CLUSTER_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.aksClusterName.value -o tsv)
-        echo "::add-mask::$AKS_CLUSTER_NAME"
-        echo "aks_cluster_name=$AKS_CLUSTER_NAME" >> $GITHUB_OUTPUT
-
         KEY_VAULT_NAME=$(az deployment group show --resource-group ${{ env.RESOURCE_GROUP }} --name main --query properties.outputs.keyVaultName.value -o tsv)
-        echo "::add-mask::$AKS_CLUSTER_NAME"
+        echo "::add-mask::$KEY_VAULT_NAME"
         echo "key_vault_name=$KEY_VAULT_NAME" >> $GITHUB_OUTPUT
 
         LOAD_BALANCER_IP=$(kubectl get service nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
@@ -249,13 +260,6 @@ jobs:
         echo "::add-mask::$CONTOSO_APP_NAMESPACE"
         echo "contoso_app_namespace=$CONTOSO_APP_NAMESPACE" >> $GITHUB_OUTPUT
 
-    - name: Get AKS Credentials
-      env:
-        RESOURCE_GROUP: ${{ secrets.AZURE_RG_CONTOSO_AKS }}
-        AKS_CLUSTER_NAME: ${{ steps.get_main_outputs.outputs.aks_cluster_name }}
-      run: |
-        az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER_NAME }}
-
     - name: Apply Service Manifests
       env:
         LOAD_BALANCER_IP: ${{ steps.get_main_outputs.outputs.load_balancer_ip }}
@@ -301,7 +305,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    needs: add-secrets
+    needs: apply-service-manifests
     strategy:
       fail-fast: false 
       matrix:
